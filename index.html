@@ -382,4 +382,474 @@
     <div class="form-group"><label class="form-label">Customer *</label>
       <select class="form-control" id="vehCustomer"><option value="">Select customer…</option></select></div>
     <div class="form-row">
-      <div class=
+      <div class="form-group"><label class="form-label">Make *</label><input class="form-control" id="vehMake" placeholder="Toyota"/></div>
+      <div class="form-group"><label class="form-label">Model *</label><input class="form-control" id="vehModel" placeholder="Camry"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Year</label><input class="form-control" id="vehYear" type="number" placeholder="2022" min="1900" max="2099"/></div>
+      <div class="form-group"><label class="form-label">Color</label><input class="form-control" id="vehColor" placeholder="Silver"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Plate Number</label><input class="form-control" id="vehPlate" placeholder="ABC-1234"/></div>
+      <div class="form-group"><label class="form-label">VIN</label><input class="form-control" id="vehVin" placeholder="1HGCM826…"/></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="saveVehicle()">Register</button>
+      <button class="btn btn-ghost" onclick="closeModal('vehModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Service Modal -->
+<div class="overlay" id="svcModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">New Service Job</span>
+      <button class="modal-close" onclick="closeModal('svcModal')">✕</button>
+    </div>
+    <div class="form-group"><label class="form-label">Customer *</label>
+      <select class="form-control" id="svcCustomer" onchange="populateVehicleDropdown()"><option value="">Select customer…</option></select></div>
+    <div class="form-group"><label class="form-label">Vehicle *</label>
+      <select class="form-control" id="svcVehicle"><option value="">Select vehicle…</option></select></div>
+    <div class="form-group"><label class="form-label">Service Type *</label>
+      <select class="form-control" id="svcType">
+        <option value="">Select service…</option>
+        <option>Oil Change</option><option>Brake Service</option><option>Tire Rotation</option>
+        <option>Engine Repair</option><option>Electrical Diagnostic</option><option>AC Service</option>
+        <option>Transmission Service</option><option>Bodywork & Paint</option><option>Wheel Alignment</option>
+        <option>Battery Replacement</option><option>Full Service</option><option>Other</option>
+      </select></div>
+    <div class="form-group"><label class="form-label">Description</label><input class="form-control" id="svcDesc" placeholder="Describe the work required…"/></div>
+    <div class="form-group"><label class="form-label">Technician</label>
+      <select class="form-control" id="svcTech"><option value="">Assign technician…</option></select></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Cost ($)</label><input class="form-control" id="svcCost" type="number" step="0.01" placeholder="0.00"/></div>
+      <div class="form-group"><label class="form-label">Date</label><input class="form-control" id="svcDate" type="date"/></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="saveService()">Create Job</button>
+      <button class="btn btn-ghost" onclick="closeModal('svcModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ SCRIPT -->
+<script>
+"use strict";
+/* ────────────────────────────────────────────────────────────────
+   OOP DATA LAYER  (mirrors ADO.NET pattern)
+   ──────────────────────────────────────────────────────────────── */
+class Customer {
+  constructor(id, name, phone, email, address) {
+    this.customerId = id; this.name = name; this.phone = phone;
+    this.email = email; this.address = address;
+    this.createdAt = new Date().toISOString().slice(0,10);
+  }
+}
+class Vehicle {
+  constructor(id, customerId, make, model, year, plate, vin, color) {
+    this.vehicleId = id; this.customerId = customerId;
+    this.make = make; this.model = model; this.year = year;
+    this.plateNumber = plate; this.vin = vin; this.color = color;
+  }
+  getDisplayName() { return `${this.year} ${this.make} ${this.model}`; }
+}
+class ServiceRecord {
+  constructor(id, vehicleId, customerId, type, desc, techId, cost, status, date) {
+    this.serviceId = id; this.vehicleId = vehicleId; this.customerId = customerId;
+    this.serviceType = type; this.description = desc; this.technicianId = techId;
+    this.cost = cost; this.status = status;
+    this.date = date || new Date().toISOString().slice(0,10);
+    this.completedAt = null;
+  }
+}
+class Technician {
+  constructor(id, name, spec, phone, status) {
+    this.technicianId = id; this.name = name; this.specialization = spec;
+    this.phone = phone; this.status = status;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────
+   DATABASE CLASS  (simulates SqlConnection + SqlCommand / DataAdapter)
+   ──────────────────────────────────────────────────────────────── */
+class ServiceCenterDB {
+  constructor() {
+    this._seq = { C:4, V:5, SR:5 };
+    this.customers = [
+      new Customer("C001","Marcus Reynolds","555-0101","marcus@email.com","12 Oak Street, NY"),
+      new Customer("C002","Priya Sharma","555-0202","priya@email.com","45 Maple Ave, LA"),
+      new Customer("C003","James O'Brien","555-0303","james@email.com","7 Pine Rd, Chicago"),
+    ];
+    this.vehicles = [
+      new Vehicle("V001","C001","Toyota","Camry",2020,"ABC-1234","1HGCM82633A123456","Silver"),
+      new Vehicle("V002","C001","Ford","F-150",2018,"XYZ-5678","1FTFW1ET5DFA12345","Black"),
+      new Vehicle("V003","C002","Honda","Civic",2022,"DEF-9012","2HGFE2F59NH123456","White"),
+      new Vehicle("V004","C003","BMW","3 Series",2021,"GHI-3456","WBA8E9G50JNU12345","Blue"),
+    ];
+    this.technicians = [
+      new Technician("T001","Alex Johnson","Engine & Transmission","555-1001","Available"),
+      new Technician("T002","Maria Garcia","Electrical Systems","555-1002","Busy"),
+      new Technician("T003","Kevin Park","Bodywork & Paint","555-1003","Available"),
+      new Technician("T004","Sandra Lee","Brakes & Suspension","555-1004","Available"),
+    ];
+    this.serviceRecords = [
+      new ServiceRecord("SR001","V001","C001","Oil Change","Full synthetic oil change + filter","T001",89.99,"Completed","2025-04-10"),
+      new ServiceRecord("SR002","V003","C002","Brake Service","Front brake pads & rotors replacement","T004",349.99,"Completed","2025-04-15"),
+      new ServiceRecord("SR003","V004","C003","Electrical Diagnostic","Check engine light diagnosis","T002",129.99,"In Progress","2025-04-25"),
+      new ServiceRecord("SR004","V002","C001","Tire Rotation","Rotate & balance all four tires","T001",59.99,"Pending","2025-04-26"),
+    ];
+  }
+  _nextId(prefix) {
+    const n = this._seq[prefix]++; return `${prefix}${String(n).padStart(3,'0')}`;
+  }
+  /* ── Customer CRUD ── */
+  getAllCustomers()          { return [...this.customers]; }
+  getCustomerById(id)       { return this.customers.find(c=>c.customerId===id); }
+  insertCustomer(d)         { const o=new Customer(this._nextId('C'),d.name,d.phone,d.email,d.address); this.customers.push(o); return o; }
+  updateCustomer(id,d)      { const o=this.getCustomerById(id); if(o) Object.assign(o,d); return o; }
+  deleteCustomer(id)        { this.customers=this.customers.filter(c=>c.customerId!==id); this.vehicles=this.vehicles.filter(v=>v.customerId!==id); }
+  /* ── Vehicle CRUD ── */
+  getAllVehicles()           { return [...this.vehicles]; }
+  getVehiclesByCustomer(id) { return this.vehicles.filter(v=>v.customerId===id); }
+  getVehicleById(id)        { return this.vehicles.find(v=>v.vehicleId===id); }
+  insertVehicle(d)          { const o=new Vehicle(this._nextId('V'),d.customerId,d.make,d.model,d.year,d.plateNumber,d.vin,d.color); this.vehicles.push(o); return o; }
+  deleteVehicle(id)         { this.vehicles=this.vehicles.filter(v=>v.vehicleId!==id); }
+  /* ── Service CRUD ── */
+  getAllServiceRecords()     { return [...this.serviceRecords]; }
+  insertServiceRecord(d)    { const o=new ServiceRecord(this._nextId('SR'),d.vehicleId,d.customerId,d.serviceType,d.description,d.technicianId,parseFloat(d.cost)||0,d.status||'Pending',d.date); this.serviceRecords.push(o); return o; }
+  updateServiceStatus(id,s) { const o=this.serviceRecords.find(r=>r.serviceId===id); if(o){o.status=s; if(s==='Completed') o.completedAt=new Date().toISOString().slice(0,10);} }
+  deleteServiceRecord(id)   { this.serviceRecords=this.serviceRecords.filter(r=>r.serviceId!==id); }
+  /* ── Technician ── */
+  getAllTechnicians()        { return [...this.technicians]; }
+  getTechById(id)           { return this.technicians.find(t=>t.technicianId===id); }
+  /* ── Stats ── */
+  getStats() {
+    const done=this.serviceRecords.filter(s=>s.status==='Completed');
+    return {
+      customers: this.customers.length,
+      vehicles:  this.vehicles.length,
+      pending:   this.serviceRecords.filter(s=>s.status==='Pending').length,
+      inProgress:this.serviceRecords.filter(s=>s.status==='In Progress').length,
+      completed: done.length,
+      revenue:   done.reduce((a,s)=>a+s.cost,0)
+    };
+  }
+}
+
+const db = new ServiceCenterDB();
+
+/* ────────────────────────────────────────────────────────────────
+   HELPERS
+   ──────────────────────────────────────────────────────────────── */
+function statusBadge(s){
+  const map={'Pending':'pending','In Progress':'progress','Completed':'completed','Cancelled':'cancelled','Available':'available','Busy':'busy'};
+  return `<span class="badge badge-${map[s]||'pending'}">${s}</span>`;
+}
+function esc(str){ return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function q(id){ return document.getElementById(id); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+/* ────────────────────────────────────────────────────────────────
+   NAVIGATION
+   ──────────────────────────────────────────────────────────────── */
+const PAGE_TITLES = {
+  dashboard:'Service Center <span>Dashboard</span>',
+  customers:'Service Center <span>Customers</span>',
+  vehicles:'Service Center <span>Vehicles</span>',
+  services:'Service Center <span>Service Records</span>',
+  technicians:'Service Center <span>Technicians</span>',
+};
+function navigate(pageId){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  q('page-'+pageId).classList.add('active');
+  document.querySelector(`[data-page="${pageId}"]`).classList.add('active');
+  q('topbarTitle').innerHTML = PAGE_TITLES[pageId];
+  renderPage(pageId);
+}
+document.getElementById('nav').addEventListener('click', e=>{
+  const btn=e.target.closest('.nav-btn');
+  if(btn) navigate(btn.dataset.page);
+});
+
+/* ────────────────────────────────────────────────────────────────
+   SIDEBAR TOGGLE
+   ──────────────────────────────────────────────────────────────── */
+const sidebar = q('sidebar');
+q('sidebarToggle').addEventListener('click', ()=>{
+  const c = sidebar.classList.toggle('collapsed');
+  q('sidebarToggle').textContent = c ? '▶' : '◀';
+});
+
+/* ────────────────────────────────────────────────────────────────
+   MODAL HELPERS
+   ──────────────────────────────────────────────────────────────── */
+function openModal(id){ q(id).classList.add('open'); }
+function closeModal(id){ q(id).classList.remove('open'); }
+document.querySelectorAll('.overlay').forEach(o=>{
+  o.addEventListener('click', e=>{ if(e.target===o) o.classList.remove('open'); });
+});
+
+/* ────────────────────────────────────────────────────────────────
+   RENDER FUNCTIONS
+   ──────────────────────────────────────────────────────────────── */
+function renderPage(p){
+  if(p==='dashboard')    renderDashboard();
+  if(p==='customers')    renderCustomers();
+  if(p==='vehicles')     renderVehicles();
+  if(p==='services')     renderServices();
+  if(p==='technicians')  renderTechnicians();
+}
+
+/* ── DASHBOARD ── */
+function renderDashboard(){
+  const s=db.getStats();
+  const stats=[
+    {icon:'👥',val:s.customers,lbl:'Total Customers',col:'var(--accent)'},
+    {icon:'🚗',val:s.vehicles,lbl:'Vehicles Registered',col:'#8B5CF6'},
+    {icon:'⏳',val:s.pending,lbl:'Pending Jobs',col:'var(--warning)'},
+    {icon:'🔧',val:s.inProgress,lbl:'In Progress',col:'var(--info)'},
+    {icon:'✅',val:s.completed,lbl:'Completed Jobs',col:'var(--success)'},
+    {icon:'💰',val:'$'+s.revenue.toFixed(2),lbl:'Total Revenue',col:'#FF6B6B'},
+  ];
+  q('statGrid').innerHTML=stats.map(c=>`
+    <div class="stat-card" data-icon="${c.icon}">
+      <span class="s-icon">${c.icon}</span>
+      <div class="s-val" style="color:${c.col}">${c.val}</div>
+      <div class="s-lbl">${c.lbl}</div>
+    </div>`).join('');
+
+  const recent=[...db.getAllServiceRecords()].reverse().slice(0,6);
+  q('dashRecentTbody').innerHTML=recent.map(s=>{
+    const v=db.getVehicleById(s.vehicleId);
+    const t=db.getTechById(s.technicianId);
+    return `<tr>
+      <td class="mono" style="color:var(--accent)">${esc(s.serviceId)}</td>
+      <td><strong>${esc(s.serviceType)}</strong></td>
+      <td>${v?esc(v.getDisplayName()):'—'}</td>
+      <td>${t?esc(t.name):'—'}</td>
+      <td style="color:var(--success);font-weight:700">$${s.cost.toFixed(2)}</td>
+      <td>${statusBadge(s.status)}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── CUSTOMERS ── */
+function renderCustomers(){
+  const search=(q('custSearch').value||'').toLowerCase();
+  const list=db.getAllCustomers().filter(c=>c.name.toLowerCase().includes(search)||c.email.toLowerCase().includes(search));
+  const grid=q('custGrid');
+  if(!list.length){ grid.innerHTML=`<div class="empty"><span class="empty-icon">👥</span><p>No customers found.</p></div>`; return; }
+  grid.innerHTML=list.map(c=>{
+    const vcount=db.getVehiclesByCustomer(c.customerId).length;
+    return `<div class="entity-card">
+      <div class="entity-top">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div class="avatar">${esc(c.name.charAt(0))}</div>
+          <div class="entity-info">
+            <div class="entity-name">${esc(c.name)}</div>
+            <div class="entity-id">${esc(c.customerId)}</div>
+          </div>
+        </div>
+        <div class="entity-actions">
+          <button class="btn btn-ghost btn-sm" onclick="editCustomer('${esc(c.customerId)}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteCustomer('${esc(c.customerId)}')">Del</button>
+        </div>
+      </div>
+      <div class="entity-details">
+        <span>📞 ${esc(c.phone)}</span>
+        <span>✉️ ${esc(c.email)}</span>
+        <span>📍 ${esc(c.address)}</span>
+        <span class="highlight">🚗 ${vcount} vehicle${vcount!==1?'s':''} registered</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+q('custSearch').addEventListener('input',renderCustomers);
+
+function editCustomer(id){
+  const c=db.getCustomerById(id);
+  if(!c) return;
+  q('custModalTitle').textContent='Edit Customer';
+  q('custEditId').value=id;
+  q('custName').value=c.name; q('custPhone').value=c.phone;
+  q('custEmail').value=c.email; q('custAddress').value=c.address;
+  openModal('custModal');
+}
+function saveCustomer(){
+  const name=q('custName').value.trim();
+  if(!name){ alert('Name is required.'); return; }
+  const d={ name, phone:q('custPhone').value, email:q('custEmail').value, address:q('custAddress').value };
+  const editId=q('custEditId').value;
+  if(editId) db.updateCustomer(editId,d); else db.insertCustomer(d);
+  closeModal('custModal');
+  q('custEditId').value=''; q('custModalTitle').textContent='Add New Customer';
+  ['custName','custPhone','custEmail','custAddress'].forEach(id=>q(id).value='');
+  renderCustomers(); renderDashboard();
+}
+function deleteCustomer(id){
+  if(!confirm('Delete this customer and all their vehicles?')) return;
+  db.deleteCustomer(id); renderCustomers(); renderDashboard();
+}
+
+/* ── VEHICLES ── */
+function renderVehicles(){
+  const search=(q('vehSearch').value||'').toLowerCase();
+  const list=db.getAllVehicles().filter(v=>v.make.toLowerCase().includes(search)||v.plateNumber.toLowerCase().includes(search)||v.model.toLowerCase().includes(search));
+  const tbody=q('vehTbody');
+  if(!list.length){ tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><span class="empty-icon">🚗</span><p>No vehicles found.</p></div></td></tr>`; return; }
+  tbody.innerHTML=list.map(v=>{
+    const owner=db.getCustomerById(v.customerId);
+    return `<tr>
+      <td class="mono" style="color:var(--accent)">${esc(v.vehicleId)}</td>
+      <td><strong>${esc(v.make)} ${esc(v.model)}</strong></td>
+      <td>${esc(v.year)}</td>
+      <td class="mono">${esc(v.plateNumber)}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted)">${esc(v.vin)}</td>
+      <td>${esc(v.color)}</td>
+      <td>${owner?esc(owner.name):'—'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteVehicle('${esc(v.vehicleId)}')">Delete</button></td>
+    </tr>`;
+  }).join('');
+}
+q('vehSearch').addEventListener('input',renderVehicles);
+
+function populateCustomerDropdown(selId){
+  const sel=q(selId);
+  const cur=sel.value;
+  sel.innerHTML='<option value="">Select customer…</option>'+
+    db.getAllCustomers().map(c=>`<option value="${esc(c.customerId)}">${esc(c.name)}</option>`).join('');
+  sel.value=cur;
+}
+function populateVehicleDropdown(){
+  const custId=q('svcCustomer').value;
+  const sel=q('svcVehicle');
+  sel.innerHTML='<option value="">Select vehicle…</option>'+
+    db.getVehiclesByCustomer(custId).map(v=>`<option value="${esc(v.vehicleId)}">${esc(v.getDisplayName())} — ${esc(v.plateNumber)}</option>`).join('');
+}
+function populateTechDropdown(selId){
+  const sel=q(selId);
+  sel.innerHTML='<option value="">Assign technician…</option>'+
+    db.getAllTechnicians().map(t=>`<option value="${esc(t.technicianId)}">${esc(t.name)} — ${esc(t.specialization)}</option>`).join('');
+}
+
+// Override openModal for vehicle/service to populate dropdowns
+const _origOpen=openModal;
+window.openModal=function(id){
+  if(id==='vehModal') populateCustomerDropdown('vehCustomer');
+  if(id==='svcModal'){
+    populateCustomerDropdown('svcCustomer');
+    q('svcVehicle').innerHTML='<option value="">Select vehicle…</option>';
+    populateTechDropdown('svcTech');
+    q('svcDate').value=todayISO();
+  }
+  _origOpen(id);
+};
+
+function saveVehicle(){
+  const custId=q('vehCustomer').value, make=q('vehMake').value.trim(), model=q('vehModel').value.trim();
+  if(!custId||!make||!model){ alert('Customer, Make, and Model are required.'); return; }
+  db.insertVehicle({ customerId:custId, make, model, year:q('vehYear').value, plateNumber:q('vehPlate').value, vin:q('vehVin').value, color:q('vehColor').value });
+  closeModal('vehModal');
+  ['vehCustomer','vehMake','vehModel','vehYear','vehColor','vehPlate','vehVin'].forEach(id=>q(id).value='');
+  renderVehicles(); renderDashboard();
+}
+function deleteVehicle(id){
+  if(!confirm('Delete this vehicle?')) return;
+  db.deleteVehicle(id); renderVehicles(); renderDashboard();
+}
+
+/* ── SERVICE RECORDS ── */
+let svcFilter='All';
+q('svcFilters').addEventListener('click',e=>{
+  const pill=e.target.closest('.filter-pill');
+  if(!pill) return;
+  q('svcFilters').querySelectorAll('.filter-pill').forEach(p=>p.classList.remove('active'));
+  pill.classList.add('active');
+  svcFilter=pill.dataset.filter;
+  renderServices();
+});
+
+function renderServices(){
+  let list=db.getAllServiceRecords();
+  if(svcFilter!=='All') list=list.filter(r=>r.status===svcFilter);
+  list=[...list].reverse();
+  const container=q('jobList');
+  if(!list.length){ container.innerHTML=`<div class="empty"><span class="empty-icon">🔧</span><p>No service records found.</p></div>`; return; }
+  container.innerHTML=list.map(s=>{
+    const v=db.getVehicleById(s.vehicleId);
+    const t=db.getTechById(s.technicianId);
+    const c=db.getCustomerById(s.customerId);
+    let actionBtns='';
+    if(s.status==='Pending') actionBtns+=`<button class="btn btn-primary btn-sm" onclick="advanceStatus('${esc(s.serviceId)}','In Progress')">▶ Start</button>`;
+    if(s.status==='In Progress') actionBtns+=`<button class="btn btn-success btn-sm" onclick="advanceStatus('${esc(s.serviceId)}','Completed')">✔ Complete</button>`;
+    if(s.status!=='Completed'&&s.status!=='Cancelled') actionBtns+=`<button class="btn btn-ghost btn-sm" onclick="advanceStatus('${esc(s.serviceId)}','Cancelled')">✕</button>`;
+    actionBtns+=`<button class="btn btn-danger btn-sm" onclick="deleteService('${esc(s.serviceId)}')">Del</button>`;
+    return `<div class="job-card">
+      <div class="job-id-col"><div class="job-id">${esc(s.serviceId)}</div><div class="job-date">${esc(s.date)}</div></div>
+      <div class="job-desc-col"><div class="job-type">${esc(s.serviceType)}</div><div class="job-note">${esc(s.description)}</div></div>
+      <div class="job-meta-col">
+        <strong>${c?esc(c.name):'—'}</strong>
+        <span>${v?esc(v.getDisplayName()):'—'}</span>
+        <span>🔧 ${t?esc(t.name):'Unassigned'}</span>
+      </div>
+      <div class="job-cost-col"><div class="job-cost">$${s.cost.toFixed(2)}</div>${statusBadge(s.status)}</div>
+      <div class="job-actions">${actionBtns}</div>
+    </div>`;
+  }).join('');
+}
+function advanceStatus(id,status){ db.updateServiceStatus(id,status); renderServices(); renderDashboard(); }
+function deleteService(id){ if(!confirm('Delete this service record?')) return; db.deleteServiceRecord(id); renderServices(); renderDashboard(); }
+
+function saveService(){
+  const custId=q('svcCustomer').value, vehId=q('svcVehicle').value, type=q('svcType').value;
+  if(!custId||!vehId||!type){ alert('Customer, Vehicle, and Service Type are required.'); return; }
+  db.insertServiceRecord({
+    customerId:custId, vehicleId:vehId, serviceType:type,
+    description:q('svcDesc').value, technicianId:q('svcTech').value,
+    cost:q('svcCost').value, date:q('svcDate').value||todayISO()
+  });
+  closeModal('svcModal');
+  renderServices(); renderDashboard();
+}
+
+/* ── TECHNICIANS ── */
+function renderTechnicians(){
+  const list=db.getAllTechnicians();
+  q('techGrid').innerHTML=list.map(t=>{
+    const jobs=db.getAllServiceRecords().filter(s=>s.technicianId===t.technicianId);
+    const done=jobs.filter(s=>s.status==='Completed').length;
+    return `<div class="entity-card">
+      <div class="entity-top">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div class="avatar teal">${esc(t.name.charAt(0))}</div>
+          <div class="entity-info">
+            <div class="entity-name">${esc(t.name)}</div>
+            <div class="entity-id">${esc(t.technicianId)}</div>
+          </div>
+        </div>
+        ${statusBadge(t.status)}
+      </div>
+      <div class="entity-details">
+        <span>🔩 ${esc(t.specialization)}</span>
+        <span>📞 ${esc(t.phone)}</span>
+        <span>📋 ${jobs.length} total job${jobs.length!==1?'s':''}, ${done} completed</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ────────────────────────────────────────────────────────────────
+   INIT
+   ──────────────────────────────────────────────────────────────── */
+(function init(){
+  const d=new Date();
+  q('topbarDate').textContent=d.toDateString();
+  renderDashboard();
+  // Kick off listeners for modals that were opened before override
+  q('custModal').querySelector('[onclick="saveCustomer()"]');
+})();
+</script>
+</body>
+</html>
